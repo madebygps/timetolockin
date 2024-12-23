@@ -4,3 +4,5 @@ requests
 authlib
 azure-cosmos
 python-dotenv
+httpx
+itsdangerous
