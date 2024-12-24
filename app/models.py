@@ -15,3 +15,4 @@ class Session(BaseModel):
     start_time: datetime
     end_time: datetime
     is_valid: Optional[bool] = False
+    access_token: str
