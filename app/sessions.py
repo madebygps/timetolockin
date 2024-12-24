@@ -3,6 +3,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timedelta, timezone
 from .database import sessions_container
+from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
 router = APIRouter()
 
@@ -55,14 +56,14 @@ async def complete_session(session_id: str, request: Request):
             response.raise_for_status()
             commits = response.json()
 
-        # Validate commit timestamps
-        start_time = datetime.fromisoformat(session["start_time"])
-        end_time = datetime.fromisoformat(session["end_time"])
+         # Convert start_time and end_time to timezone-aware datetime objects
+        start_time = datetime.fromisoformat(session["start_time"]).replace(tzinfo=timezone.utc)
+        end_time = datetime.fromisoformat(session["end_time"]).replace(tzinfo=timezone.utc)
 
         for commit in commits:
             commit_time = datetime.strptime(
                 commit["commit"]["committer"]["date"], "%Y-%m-%dT%H:%M:%SZ"
-            )
+            ).replace(tzinfo=timezone.utc)
             if start_time <= commit_time <= end_time:
                 session["is_valid"] = True
                 sessions_container.upsert_item(session)
@@ -70,7 +71,7 @@ async def complete_session(session_id: str, request: Request):
 
         return {"message": "No valid commits found within the session timeframe", "is_valid": False}
 
-    except sessions_container.exceptions.CosmosResourceNotFoundError:
+    except CosmosResourceNotFoundError:
         raise HTTPException(status_code=404, detail="Session not found")
     except httpx.HTTPStatusError as http_err:
         raise HTTPException(
