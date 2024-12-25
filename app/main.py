@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from .auth import oauth, login_via_github, auth_callback
 from .auth import router as auth_router
@@ -19,6 +20,15 @@ app.add_middleware(
     same_site='lax',  # Allows cookies for navigation requests
     https_only=False,  # Set to True in production
   
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:8080"],  # Update with your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

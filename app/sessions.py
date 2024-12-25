@@ -1,7 +1,9 @@
 import uuid
 import httpx
-from fastapi import APIRouter, HTTPException, Request, requests
+from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timedelta, timezone
+
+import requests
 from .database import sessions_container, users_container
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
@@ -45,18 +47,18 @@ async def complete_session(session_id: str, user_id: str):
 
         # Fetch commits from GitHub
         headers = {"Authorization": f"Bearer {session['access_token']}"}
-        commits_url = f"https://api.github.com/repos/{session['repo']}/commits"
+        commits_url = f"https://api.github.com/repos/{user_id}/{session['repo']}/commits"
         response = requests.get(commits_url, headers=headers)
         response.raise_for_status()
         commits = response.json()
 
         # Validate commit timestamps
-        start_time = datetime.fromisoformat(session["start_time"])
-        end_time = datetime.fromisoformat(session["end_time"])
+        start_time = datetime.fromisoformat(session["start_time"]).replace(tzinfo=timezone.utc)
+        end_time = datetime.fromisoformat(session["end_time"]).replace(tzinfo=timezone.utc)
         current_date = datetime.now(timezone.utc).date()
 
         for commit in commits:
-            commit_time = datetime.strptime(commit["commit"]["committer"]["date"], "%Y-%m-%dT%H:%M:%SZ")
+            commit_time = datetime.strptime(commit["commit"]["committer"]["date"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
             if start_time <= commit_time <= end_time:
                 session["is_valid"] = True
                 sessions_container.upsert_item(session)

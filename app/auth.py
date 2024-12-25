@@ -2,6 +2,7 @@ from datetime import datetime
 import uuid
 from fastapi import APIRouter, Request, HTTPException
 from authlib.integrations.starlette_client import OAuth
+from fastapi.responses import RedirectResponse
 import httpx
 from .database import sessions_container, users_container
 
@@ -64,7 +65,8 @@ async def auth_callback(request: Request):
         request.session["access_token"] = token["access_token"]
         request.session["user_id"] = user_id
 
-        return {"message": "Login successful", "user_info": user_info}
+        # Redirect to frontend route
+        return RedirectResponse(url="http://127.0.0.1:8080/pomodoro")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail="OAuth callback failed")
