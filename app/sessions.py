@@ -1,8 +1,8 @@
 import uuid
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, requests
 from datetime import datetime, timedelta, timezone
-from .database import sessions_container
+from .database import sessions_container, users_container
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
 router = APIRouter()
@@ -38,45 +38,92 @@ async def start_session(repo: str, intention: str, request: Request):
 
 
 @router.post("/sessions/complete")
-async def complete_session(session_id: str, request: Request):
-    # Ensure the user is authenticated
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User is not authenticated")
-
+async def complete_session(session_id: str, user_id: str):
     try:
-        # Fetch the session data from Cosmos DB
+        # Fetch session from Cosmos DB
         session = sessions_container.read_item(item=session_id, partition_key=user_id)
 
         # Fetch commits from GitHub
         headers = {"Authorization": f"Bearer {session['access_token']}"}
-        commits_url = f"https://api.github.com/repos/{session['user_id']}/{session['repo']}/commits"
-        async with httpx.AsyncClient() as client:
-            response = await client.get(commits_url, headers=headers)
-            response.raise_for_status()
-            commits = response.json()
+        commits_url = f"https://api.github.com/repos/{session['repo']}/commits"
+        response = requests.get(commits_url, headers=headers)
+        response.raise_for_status()
+        commits = response.json()
 
-         # Convert start_time and end_time to timezone-aware datetime objects
-        start_time = datetime.fromisoformat(session["start_time"]).replace(tzinfo=timezone.utc)
-        end_time = datetime.fromisoformat(session["end_time"]).replace(tzinfo=timezone.utc)
+        # Validate commit timestamps
+        start_time = datetime.fromisoformat(session["start_time"])
+        end_time = datetime.fromisoformat(session["end_time"])
+        current_date = datetime.now(timezone.utc).date()
 
         for commit in commits:
-            commit_time = datetime.strptime(
-                commit["commit"]["committer"]["date"], "%Y-%m-%dT%H:%M:%SZ"
-            ).replace(tzinfo=timezone.utc)
+            commit_time = datetime.strptime(commit["commit"]["committer"]["date"], "%Y-%m-%dT%H:%M:%SZ")
             if start_time <= commit_time <= end_time:
                 session["is_valid"] = True
                 sessions_container.upsert_item(session)
-                return {"message": "Session completed successfully", "is_valid": True}
 
-        return {"message": "No valid commits found within the session timeframe", "is_valid": False}
+                # Update user streak
+                user = users_container.read_item(item=user_id, partition_key=user_id)
+                last_valid_session_date = user.get("last_valid_session_date")
 
-    except CosmosResourceNotFoundError:
-        raise HTTPException(status_code=404, detail="Session not found")
-    except httpx.HTTPStatusError as http_err:
-        raise HTTPException(
-            status_code=http_err.response.status_code,
-            detail=f"Error fetching commits from GitHub: {http_err.response.text}",
-        )
+                if last_valid_session_date:
+                    last_valid_date = datetime.fromisoformat(last_valid_session_date).date()
+                    if current_date == last_valid_date:
+                        pass  # Same day, streak doesn't change
+                    elif current_date == last_valid_date + timedelta(days=1):
+                        user["streak"] += 1  # Increment streak
+                    else:
+                        user["streak"] = 1  # Reset streak to 1
+                else:
+                    user["streak"] = 1  # First valid session
+
+                # Update longest streak
+                if user["streak"] > user.get("longest_streak", 0):
+                    user["longest_streak"] = user["streak"]
+
+                # Update last valid session date
+                user["last_valid_session_date"] = current_date.isoformat()
+                users_container.upsert_item(user)
+
+                return {
+                    "message": "Session completed successfully",
+                    "is_valid": True,
+                    "streak": user["streak"],
+                    "longest_streak": user["longest_streak"],
+                }
+
+        # If no valid commits, reset streak
+        session["is_valid"] = False
+        sessions_container.upsert_item(session)
+
+        user = users_container.read_item(item=user_id, partition_key=user_id)
+        user["streak"] = 0  # Reset streak
+        users_container.upsert_item(user)
+
+        return {
+            "message": "No valid commits found",
+            "is_valid": False,
+            "streak": user["streak"],
+            "longest_streak": user.get("longest_streak", 0),
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error completing session: {str(e)}")
+
+
+
+@router.get("/streak")
+async def get_streak(request: Request):
+    try:
+        user_id = request.session.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User is not authenticated")
+
+        user = users_container.read_item(item=user_id, partition_key=user_id)
+        return {
+            "streak": user.get("streak", 0),
+            "longest_streak": user.get("longest_streak", 0),
+            "last_valid_session_date": user.get("last_valid_session_date"),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching streak: {str(e)}")
