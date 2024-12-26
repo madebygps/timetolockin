@@ -2,10 +2,10 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from .auth import oauth, login_via_github, auth_callback
+from .auth import oauth
 from .auth import router as auth_router
-from .sessions import start_session, complete_session   
 from .sessions import router as sessions_router
+from .streaks import router as streaks_router
 from starlette.middleware.sessions import SessionMiddleware
 
 load_dotenv()
@@ -44,3 +44,4 @@ oauth.register(
 
 app.include_router(auth_router)
 app.include_router(sessions_router)
+app.include_router(streaks_router)

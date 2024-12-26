@@ -13,7 +13,7 @@ router = APIRouter()
 async def login_via_github(request: Request):
     state = str(uuid.uuid4())  # Generate a random state
     request.session['state'] = state  # Store state in the session
-    print('Generated state:', state)
+
     
     redirect_uri = 'http://127.0.0.1:8000/auth/callback'
     return await oauth.github.authorize_redirect(request, redirect_uri, state=state)
@@ -65,10 +65,10 @@ async def auth_callback(request: Request):
         request.session["access_token"] = token["access_token"]
         request.session["user_id"] = user_id
 
-        # Redirect to frontend route
-        return RedirectResponse(url="http://127.0.0.1:8080/pomodoro")
+        # Redirect to pomodoro page 8080
+        return RedirectResponse(url="http://127.0.0.1:8000/streak")
+        
+        
 
     except Exception as e:
         raise HTTPException(status_code=500, detail="OAuth callback failed")
-
-

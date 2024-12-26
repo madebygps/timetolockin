@@ -112,20 +112,26 @@ async def complete_session(session_id: str, user_id: str):
         raise HTTPException(status_code=500, detail=f"Error completing session: {str(e)}")
 
 
-
-@router.get("/streak")
-async def get_streak(request: Request):
+@router.post("/sessions/update")
+async def update_pomodoro(session_id: str, user_id: str, request: Request):
     try:
-        user_id = request.session.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="User is not authenticated")
+        session = sessions_container.read_item(item=session_id, partition_key=user_id)
 
-        user = users_container.read_item(item=user_id, partition_key=user_id)
-        return {
-            "streak": user.get("streak", 0),
-            "longest_streak": user.get("longest_streak", 0),
-            "last_valid_session_date": user.get("last_valid_session_date"),
-        }
+        # Update the current Pomodoro count
+        session["current_pomodoro"] += 1
+
+        # Check if the session is complete
+        if session["current_pomodoro"] >= session["total_pomodoros"]:
+            session["is_valid"] = True
+
+        # Update the end time for the next Pomodoro or break
+        session["end_time"] = (
+            datetime.now(timezone.utc) + timedelta(minutes=25 if session["current_pomodoro"] % 2 == 1 else 2)
+        ).isoformat()
+
+        sessions_container.upsert_item(session)
+        return {"message": "Pomodoro updated", "session": session}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching streak: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating Pomodoro: {str(e)}")
+
