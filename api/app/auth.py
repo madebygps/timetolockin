@@ -80,7 +80,7 @@ async def auth_callback(request: Request):
         request.session["user_id"] = user_id
 
         # Redirect to pomodoro page 8080
-        return RedirectResponse(url="http://127.0.0.1:8000/streak")
+        return RedirectResponse(url="http://localhost:5173/streaks")
         
     except Exception as e:
         raise HTTPException(status_code=500, detail="OAuth callback failed")

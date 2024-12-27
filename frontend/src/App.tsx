@@ -7,6 +7,7 @@ import CompleteSession from './components/Sessions/CompleteSession';
 import UpdatePomodoro from './components/Sessions/UpdatePomodoro';
 import StartSession from './components/Sessions/StartSession';
 import GetSessionState from './components/Sessions/GetSessionState';
+import Streaks from './components/Streaks';
 
 const App: React.FC = () => {
   return (
@@ -19,6 +20,7 @@ const App: React.FC = () => {
         <Route path="/update-pomodoro" element={<UpdatePomodoro />} />
         <Route path="/start-session" element={<StartSession />} />
         <Route path="/get-session-state" element={<GetSessionState />} />
+        <Route path="/streaks" element={<Streaks />} />
       </Routes>
     </Router>
   );
