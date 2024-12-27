@@ -1,22 +1,36 @@
-from datetime import datetime
 import uuid
 from fastapi import APIRouter, Request, HTTPException
 from authlib.integrations.starlette_client import OAuth
 from fastapi.responses import RedirectResponse
 import httpx
-from .database import sessions_container, users_container
+from .database import users_container
 
 oauth = OAuth()
 router = APIRouter()
 
 @router.get('/auth/login')
 async def login_via_github(request: Request):
-    state = str(uuid.uuid4())  # Generate a random state
-    request.session['state'] = state  # Store state in the session
-
-    
+    state = str(uuid.uuid4())  
+    request.session['state'] = state  
     redirect_uri = 'http://127.0.0.1:8000/auth/callback'
     return await oauth.github.authorize_redirect(request, redirect_uri, state=state)
+
+@router.post('/auth/logout')
+async def logout(request: Request):
+    """
+    Clears the user's session and logs them out.
+    """
+    try:
+        # Clear session data
+        request.session.clear()
+
+        # Optionally log logout activity
+        print("User logged out successfully.")
+
+        # Return a success message or status
+        return {"message": "Logout successful"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to log out: {str(e)}")
 
 
 @router.get("/auth/callback")
@@ -68,7 +82,5 @@ async def auth_callback(request: Request):
         # Redirect to pomodoro page 8080
         return RedirectResponse(url="http://127.0.0.1:8000/streak")
         
-        
-
     except Exception as e:
         raise HTTPException(status_code=500, detail="OAuth callback failed")

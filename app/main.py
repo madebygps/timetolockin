@@ -19,7 +19,6 @@ app.add_middleware(
     max_age=86400,  # Session expires in 1 day
     same_site='lax',  # Allows cookies for navigation requests
     https_only=False,  # Set to True in production
-  
 )
 
 # Add CORS middleware
@@ -30,7 +29,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # Register OAuth
 oauth.register(
